@@ -1,0 +1,172 @@
+#!/usr/bin/env julia
+
+using Pkg
+Pkg.activate(joinpath(@__DIR__, ".."))
+
+using ArgParse
+using Dates
+using Blab
+
+function parse_commandline()
+    s = ArgParseSettings(
+        description = "Blab - Minimal Backtesting Library",
+        version = "0.1.0",
+        add_version = true
+    )
+
+    @add_arg_table! s begin
+        "run"
+            help = "Run a backtest strategy"
+            action = :command
+        "demo"
+            help = "Run demo strategies"
+            action = :command
+        "compare"
+            help = "Compare all strategies on real S&P 500 data"
+            action = :command
+        "list"
+            help = "List available strategies"
+            action = :command
+    end
+
+    @add_arg_table! s["run"] begin
+        "strategy"
+            help = "Strategy to run (ma, momentum, hmm)"
+            required = true
+        "--data", "-d"
+            help = "Path to data file (CSV)"
+            arg_type = String
+        "--threads", "-t"
+            help = "Number of threads for parallel execution"
+            arg_type = Int
+            default = 1
+        "--output", "-o"
+            help = "Output file for results (JSON)"
+            arg_type = String
+    end
+
+    @add_arg_table! s["demo"] begin
+        "strategy"
+            help = "Strategy demo to run (ma, momentum, hmm, all)"
+            default = "all"
+        "--parallel", "-p"
+            help = "Run parallel demo if available"
+            action = :store_true
+    end
+
+    @add_arg_table! s["compare"] begin
+        "--stocks", "-n"
+            help = "Number of top S&P 500 stocks to use"
+            arg_type = Int
+            default = 10
+        "--train-end"
+            help = "Training end date (YYYY-MM-DD)"
+            arg_type = String
+            default = "2022-01-01"
+        "--val-end"
+            help = "Validation end date (YYYY-MM-DD)"
+            arg_type = String
+            default = "2023-01-01"
+        "--datasets", "-d"
+            help = "Path to datasets directory"
+            arg_type = String
+            default = nothing
+    end
+
+    return parse_args(s)
+end
+
+function run_demo(strategy::String, parallel::Bool)
+    if strategy == "ma" || strategy == "all"
+        println("\n" * "="^60)
+        println("Running Moving Average Strategy Demo")
+        println("="^60)
+        if parallel
+            Blab.MAStrategy.demo_parallel()
+        else
+            Blab.MAStrategy.demo()
+        end
+    end
+
+    if strategy == "momentum" || strategy == "all"
+        println("\n" * "="^60)
+        println("Running Momentum Strategy Demo")
+        println("="^60)
+        if parallel
+            Blab.MomentumStrategy.demo_parallel()
+        else
+            Blab.MomentumStrategy.demo()
+        end
+    end
+
+    if strategy == "hmm" || strategy == "all"
+        println("\n" * "="^60)
+        println("Running HMM Strategy Demo")
+        println("="^60)
+        Blab.HMMStrategy.demo()
+    end
+end
+
+function list_strategies()
+    println("Available strategies:")
+    println("  ma        - Moving Average Crossover")
+    println("  momentum  - Portfolio Momentum Rotation")
+    println("  hmm       - Hidden Markov Model Regime Detection")
+end
+
+function main()
+    parsed_args = parse_commandline()
+
+    if parsed_args["%COMMAND%"] == "demo"
+        strategy = parsed_args["demo"]["strategy"]
+        parallel = parsed_args["demo"]["parallel"]
+        run_demo(strategy, parallel)
+    elseif parsed_args["%COMMAND%"] == "compare"
+        n_stocks = parsed_args["compare"]["stocks"]
+        train_end_str = parsed_args["compare"]["train-end"]
+        val_end_str = parsed_args["compare"]["val-end"]
+        datasets_dir = parsed_args["compare"]["datasets"]
+
+        # Parse dates
+        train_end = DateTime(train_end_str)
+        val_end = DateTime(val_end_str)
+
+        # Use default datasets directory if not specified
+        if isnothing(datasets_dir)
+            datasets_dir = joinpath(dirname(@__DIR__), "..", "datasets")
+        end
+
+        # Run comparison
+        Blab.compare_all_strategies(
+            n_stocks=n_stocks,
+            train_end=train_end,
+            val_end=val_end,
+            datasets_dir=datasets_dir
+        )
+    elseif parsed_args["%COMMAND%"] == "list"
+        list_strategies()
+    elseif parsed_args["%COMMAND%"] == "run"
+        strategy = parsed_args["run"]["strategy"]
+        data_file = parsed_args["run"]["data"]
+        threads = parsed_args["run"]["threads"]
+        output = parsed_args["run"]["output"]
+
+        println("Running strategy: $strategy")
+        if !isnothing(data_file)
+            println("Data file: $data_file")
+        end
+        if threads > 1
+            println("Using $threads threads")
+        end
+
+        # TODO: Implement custom data loading and running
+        println("Custom data backtesting not yet implemented.")
+        println("Use 'blab demo $strategy' to run built-in demos.")
+    else
+        println("Use 'blab --help' for usage information")
+    end
+end
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end

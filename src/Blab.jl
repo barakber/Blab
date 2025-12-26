@@ -1,0 +1,51 @@
+"""
+# Blab
+
+A minimal backtesting library for trading strategies.
+
+Users implement: Strategy, Model, signal()
+Library handles: data loading, splitting, backtest loop (no look-ahead)
+"""
+module Blab
+
+using DataFrames
+using UUIDs
+using Dates
+using Statistics
+
+# Include the backtesting engine
+include("BacktestEngine.jl")
+
+# Export main types and functions
+export Dataset, Model, Strategy, Metrics, BacktestResult, BacktestJob
+export Train, Validation, Test, Untagged
+
+# Export dataset functions
+export assets, n_assets, getdf, timestamps, prices, price, prices_at
+export ohlcv_at, returns, split, subset, nrow
+
+# Export backtesting functions
+export backtest, backtest_parallel, backtest_distributed, backtest_sweep
+
+# Define generic functions that strategies will implement
+function signal end
+function train__ end
+
+# Include built-in strategy modules
+include("strategies/MA.jl")
+include("strategies/Momentum.jl")
+include("strategies/HMM.jl")
+
+# Re-export strategy modules so users can access them as Blab.MAStrategy, etc.
+using .MAStrategy
+using .MomentumStrategy
+using .HMMStrategy
+
+# Include utilities
+include("DataLoader.jl")
+include("CompareStrategies.jl")
+
+# Export utility functions
+export load_stock, load_stocks, get_top_sp500_symbols, compare_all_strategies
+
+end # module

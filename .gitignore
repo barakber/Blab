@@ -1,0 +1,35 @@
+# Julia
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+/Manifest.toml
+/deps/deps.jl
+
+# Vim
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Build artifacts
+*.so
+*.dylib
+*.dll
+*.o
+*.a
+
+# Logs
+*.log
+
+# Output
+*.csv
+*.json
+results/
