@@ -24,6 +24,9 @@ function parse_commandline()
         "compare"
             help = "Compare all strategies on real S&P 500 data"
             action = :command
+        "periods"
+            help = "Test all strategies across market periods (crises, bull/bear markets)"
+            action = :command
         "list"
             help = "List available strategies"
             action = :command
@@ -67,6 +70,17 @@ function parse_commandline()
             help = "Validation end date (YYYY-MM-DD)"
             arg_type = String
             default = "2023-01-01"
+        "--datasets", "-d"
+            help = "Path to datasets directory"
+            arg_type = String
+            default = nothing
+    end
+
+    @add_arg_table! s["periods"] begin
+        "--stocks", "-n"
+            help = "Number of top S&P 500 stocks to use"
+            arg_type = Int
+            default = 6
         "--datasets", "-d"
             help = "Path to datasets directory"
             arg_type = String
@@ -141,6 +155,20 @@ function main()
             n_stocks=n_stocks,
             train_end=train_end,
             val_end=val_end,
+            datasets_dir=datasets_dir
+        )
+    elseif parsed_args["%COMMAND%"] == "periods"
+        n_stocks = parsed_args["periods"]["stocks"]
+        datasets_dir = parsed_args["periods"]["datasets"]
+
+        if isnothing(datasets_dir)
+            # Default to ../datasets relative to the package root
+            datasets_dir = joinpath(dirname(@__DIR__), "..", "datasets")
+        end
+
+        # Run time periods analysis
+        Blab.analyze_time_periods(
+            n_stocks=n_stocks,
             datasets_dir=datasets_dir
         )
     elseif parsed_args["%COMMAND%"] == "list"

@@ -44,16 +44,40 @@ function compare_all_strategies(;
 
     # Strategy 1: Moving Average (single asset)
     println("Setting up Moving Average strategies...")
-    for (fast, slow) in [(5, 20), (10, 30), (20, 50), (10, 50)]
+    for (fast, slow) in [(10, 30), (20, 50)]
         m = Model(train_single, val_single, MAStrategy.MAParams(fast, slow))
         s = Strategy(m)
         push!(jobs, BacktestJob("MA_$(fast)_$(slow)", test_single, s))
     end
 
-    # Strategy 2: Momentum Rotation (multi-asset)
+    # Strategy 2: EMA Crossover (single asset)
+    println("Setting up EMA strategies...")
+    for (fast, slow) in [(12, 26), (8, 21)]
+        m = Model(train_single, val_single, EMAStrategy.EMAParams(fast, slow))
+        s = Strategy(m)
+        push!(jobs, BacktestJob("EMA_$(fast)_$(slow)", test_single, s))
+    end
+
+    # Strategy 3: MACD (single asset)
+    println("Setting up MACD strategies...")
+    for (fast, slow, sig) in [(12, 26, 9), (8, 17, 9)]
+        m = Model(train_single, val_single, MACDStrategy.MACDParams(fast, slow, sig))
+        s = Strategy(m)
+        push!(jobs, BacktestJob("MACD_$(fast)_$(slow)_$(sig)", test_single, s))
+    end
+
+    # Strategy 4: RSI Mean Reversion (single asset)
+    println("Setting up RSI strategies...")
+    for (period, oversold, overbought) in [(14, 30.0, 70.0), (14, 20.0, 80.0)]
+        m = Model(train_single, val_single, RSIStrategy.RSIParams(period, oversold, overbought))
+        s = Strategy(m)
+        push!(jobs, BacktestJob("RSI_$(period)_$(Int(oversold))_$(Int(overbought))", test_single, s))
+    end
+
+    # Strategy 5: Momentum Rotation (multi-asset)
     println("Setting up Momentum Rotation strategies...")
     num_assets = n_assets(ds)
-    for (lookback, top_n) in [(10, 2), (20, 3), (30, 3), (60, 4), (20, 5)]
+    for (lookback, top_n) in [(20, 3), (30, 3), (60, 4)]
         if top_n <= num_assets
             m = Model(train, val, MomentumStrategy.MomentumParams(lookback, top_n))
             s = Strategy(m)
@@ -61,7 +85,7 @@ function compare_all_strategies(;
         end
     end
 
-    # Strategy 3: HMM Regime (single asset)
+    # Strategy 6: HMM Regime (single asset)
     println("Setting up HMM Regime strategy...")
     asset = first(assets(train_single))
     rets = returns(train_single, asset)
@@ -70,6 +94,28 @@ function compare_all_strategies(;
     m = Model(train_single, val_single, HMMStrategy.HMMParams(hmm))
     s = Strategy(m)
     push!(jobs, BacktestJob("HMM_regime", test_single, s))
+
+    # Strategy 7: XGBoost ML (single asset)
+    println("Setting up XGBoost ML strategy...")
+    try
+        m = train__(XGBoostMLStrategy.XGBoostParams, train_single, val_single)
+        s = Strategy(m)
+        push!(jobs, BacktestJob("XGBoost_ML", test_single, s))
+    catch e
+        println("  Warning: XGBoost failed to train: $e")
+        println("  Skipping XGBoost strategy...")
+    end
+
+    # Strategy 8: Regime Switching (meta-strategy)
+    println("Setting up Regime Switching strategy...")
+    try
+        m = train__(RegimeSwitchStrategy.RegimeSwitchParams, train_single, val_single)
+        s = Strategy(m)
+        push!(jobs, BacktestJob("RegimeSwitch", test_single, s))
+    catch e
+        println("  Warning: RegimeSwitch failed to train: $e")
+        println("  Skipping RegimeSwitch strategy...")
+    end
 
     println("\nRunning $(length(jobs)) strategies in parallel...\n")
 
@@ -112,23 +158,23 @@ function compare_all_strategies(;
 
     # Strategy type comparison
     println("\nStrategy Type Summary:")
-    ma_results = filter(r -> startswith(r.name, "MA_"), sorted_results)
-    mom_results = filter(r -> startswith(r.name, "Momentum_"), sorted_results)
-    hmm_results = filter(r -> startswith(r.name, "HMM_"), sorted_results)
 
-    if !isempty(ma_results)
-        best_ma = first(ma_results)
-        println("  Best MA: $(best_ma.name) - Sharpe: $(round(best_ma.metrics.sharpe, digits=2))")
-    end
+    strategy_types = [
+        ("MA", "MA_"),
+        ("EMA", "EMA_"),
+        ("MACD", "MACD_"),
+        ("RSI", "RSI_"),
+        ("Momentum", "Momentum_"),
+        ("HMM", "HMM_"),
+        ("XGBoost", "XGBoost_")
+    ]
 
-    if !isempty(mom_results)
-        best_mom = first(mom_results)
-        println("  Best Momentum: $(best_mom.name) - Sharpe: $(round(best_mom.metrics.sharpe, digits=2))")
-    end
-
-    if !isempty(hmm_results)
-        best_hmm = first(hmm_results)
-        println("  Best HMM: $(best_hmm.name) - Sharpe: $(round(best_hmm.metrics.sharpe, digits=2))")
+    for (type_name, prefix) in strategy_types
+        type_results = filter(r -> startswith(r.name, prefix), sorted_results)
+        if !isempty(type_results)
+            best = first(type_results)
+            println("  Best $type_name: $(best.name) - Sharpe: $(round(best.metrics.sharpe, digits=2))")
+        end
     end
 
     println("="^70)

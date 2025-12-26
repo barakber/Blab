@@ -35,17 +35,32 @@ function train__ end
 include("strategies/MA.jl")
 include("strategies/Momentum.jl")
 include("strategies/HMM.jl")
+include("strategies/MACD.jl")
+include("strategies/RSI.jl")
+include("strategies/EMA.jl")
+include("strategies/XGBoostML.jl")
+include("strategies/RegimeSwitch.jl")
 
 # Re-export strategy modules so users can access them as Blab.MAStrategy, etc.
 using .MAStrategy
 using .MomentumStrategy
 using .HMMStrategy
+using .MACDStrategy
+using .RSIStrategy
+using .EMAStrategy
+using .XGBoostMLStrategy
+using .RegimeSwitchStrategy
 
 # Include utilities
 include("DataLoader.jl")
 include("CompareStrategies.jl")
+include("TimePeriodsAnalysis.jl")
+
+# Use TimePeriodsAnalysis
+using .TimePeriodsAnalysis
 
 # Export utility functions
 export load_stock, load_stocks, get_top_sp500_symbols, compare_all_strategies
+export analyze_time_periods, get_market_periods
 
 end # module
