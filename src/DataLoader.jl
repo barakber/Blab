@@ -72,16 +72,62 @@ function load_stocks(symbols::Vector{Symbol}, datasets_dir::String)::Dataset{Unt
 end
 
 """
-Get top S&P 500 stocks (by market cap / common large caps).
+Get diversified S&P 500 stocks across major sectors.
+Organized by sector for better cross-industry diversification.
 """
-function get_top_sp500_symbols(n::Int=10)::Vector{Symbol}
-    # Top S&P 500 by market cap (as of common knowledge)
-    # Note: Using Symbol() for BRK-B due to hyphen
+function get_top_sp500_symbols(n::Int=30)::Vector{Symbol}
+    # Diversified across sectors (approx. by market cap within sector)
+    #
+    # Sector Breakdown (default n=30):
+    # - Technology: 8 stocks (~27%)
+    # - Healthcare: 5 stocks (~17%)
+    # - Financials: 4 stocks (~13%)
+    # - Consumer Discretionary: 4 stocks (~13%)
+    # - Consumer Staples: 3 stocks (~10%)
+    # - Industrials: 3 stocks (~10%)
+    # - Energy: 2 stocks (~7%)
+    # - Utilities: 1 stock (~3%)
+
     all_symbols = [
-        :AAPL, :MSFT, :GOOGL, :AMZN, :NVDA, :META, :TSLA, Symbol("BRK-B"),
-        :JPM, :V, :UNH, :JNJ, :WMT, :MA, :PG, :HD, :CVX, :ABBV,
-        :MRK, :KO, :PEP, :COST, :AVGO, :CSCO, :ADBE, :NFLX,
-        :INTC, :AMD, :QCOM, :TXN, :CRM, :ORCL, :PYPL, :INTU
+        # Technology (8) - Innovation & Growth
+        :AAPL, :MSFT, :NVDA, :GOOGL, :META, :AVGO, :ADBE, :CRM,
+
+        # Healthcare (5) - Defensive & Stable
+        :UNH, :LLY, :JNJ, :ABBV, :MRK,
+
+        # Financials (4) - Economic Cycle Exposure
+        :JPM, :V, :MA, :BAC,
+
+        # Consumer Discretionary (4) - Consumer Spending
+        :AMZN, :TSLA, :HD, :MCD,
+
+        # Consumer Staples (3) - Defensive & Recession-Resistant
+        :WMT, :PG, :KO,
+
+        # Industrials (3) - Economic Growth
+        :CAT, :BA, :UNP,
+
+        # Energy (2) - Inflation Hedge
+        :XOM, :CVX,
+
+        # Utilities (1) - Defensive & Low Volatility
+        :NEE,
+
+        # Additional Diversifiers (if n > 30):
+        # Technology
+        :AMD, :INTC, :QCOM, :ORCL, :CSCO, :NFLX,
+        # Healthcare
+        :PFE, :TMO, :ABT, :BMY,
+        # Financials
+        :GS, :MS, :SPGI,
+        # Consumer
+        :COST, :PEP, :NKE, :SBUX, :LOW, :DIS,
+        # Industrials
+        :HON, :RTX, :UPS,
+        # Communication
+        :T, :VZ,
+        # Other
+        Symbol("BRK-B"), :LIN
     ]
 
     all_symbols[1:min(n, length(all_symbols))]
