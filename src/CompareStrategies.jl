@@ -18,8 +18,15 @@ function compare_all_strategies(;
     println("="^70)
     println("Running on $(Threads.nthreads()) threads\n")
 
-    # Load top S&P 500 stocks
+    # Load top S&P 500 stocks - always include SPY for Buy & Hold baseline
+    # Also include QQQ and TQQQ for LeverageQQQ strategy
     symbols = get_top_sp500_symbols(n_stocks)
+    required_etfs = [:SPY, :QQQ, :TQQQ]
+    for etf in required_etfs
+        if !(etf in symbols)
+            symbols = [etf; symbols]
+        end
+    end
     println("Loading stocks: $(join(symbols, ", "))")
 
     ds = load_stocks(symbols, datasets_dir)
@@ -34,13 +41,21 @@ function compare_all_strategies(;
     println("  Train: $(nrow(train)) | Val: $(nrow(val)) | Test: $(nrow(test))")
     println()
 
-    # Single asset dataset for MA and HMM (use SPY or first stock)
-    single_symbol = :SPY in assets(ds) ? :SPY : first(assets(ds))
-    ds_single = Dataset(single_symbol => getdf(ds, single_symbol))
+    # Single asset dataset for MA and HMM (use SPY)
+    ds_single = Dataset(:SPY => getdf(ds, :SPY))
     train_single, val_single, test_single = split(ds_single, train_end, val_end)
+
+    # SPY-only dataset for Buy & Hold baseline (same as single asset)
+    train_spy, val_spy, test_spy = train_single, val_single, test_single
 
     # Create all strategy jobs
     jobs = BacktestJob[]
+
+    # Strategy 0: Buy & Hold SPY baseline
+    println("Setting up Buy & Hold SPY baseline...")
+    m = Model(train_spy, val_spy, BuyHoldStrategy.BuyHoldParams(1.0))
+    s = Strategy(m)
+    push!(jobs, BacktestJob("BuyHold_SPY", test_spy, s))
 
     # Strategy 1: Moving Average (single asset)
     println("Setting up Moving Average strategies...")
@@ -117,6 +132,49 @@ function compare_all_strategies(;
         println("  Skipping RegimeSwitch strategy...")
     end
 
+    # Strategy 9: Genetic Algorithm Portfolio Optimization (multi-asset)
+    println("Setting up Genetic Algorithm Portfolio strategy...")
+    try
+        m = train__(GeneticPortfolioStrategy.GeneticPortfolioParams, train, val)
+        s = Strategy(m)
+        push!(jobs, BacktestJob("GeneticPortfolio", test, s))
+    catch e
+        println("  Warning: GeneticPortfolio failed to train: $e")
+        println("  Skipping GeneticPortfolio strategy...")
+    end
+
+    # Strategy 10: TDA (Topological Data Analysis) with Persistent Homology (single asset)
+    println("Setting up TDA strategy...")
+    try
+        m = train__(TDAStrategy.TDAParams, train_single, val_single)
+        s = Strategy(m)
+        push!(jobs, BacktestJob("TDA", test_single, s))
+    catch e
+        println("  Warning: TDA failed to train: $e")
+        println("  Skipping TDA strategy...")
+    end
+
+    # Strategy 11: Leveraged QQQ (TQQQ/SQQQ) - learns from QQQ, trades TQQQ
+    println("Setting up Leveraged QQQ (TQQQ) strategy...")
+    try
+        # Need QQQ and TQQQ in the dataset
+        if :QQQ in assets(ds) && :TQQQ in assets(ds)
+            # Create dataset with QQQ and TQQQ
+            qqq_tqqq_data = Dict(:QQQ => getdf(ds, :QQQ), :TQQQ => getdf(ds, :TQQQ))
+            ds_qqq_tqqq = Dataset(qqq_tqqq_data)
+            train_qqq, val_qqq, test_qqq = split(ds_qqq_tqqq, train_end, val_end)
+
+            m = train__(LeverageQQQStrategy.LeverageQQQParams, train_qqq, val_qqq)
+            s = Strategy(m)
+            push!(jobs, BacktestJob("LeverageQQQ", test_qqq, s))
+        else
+            println("  Warning: QQQ and TQQQ data required, skipping...")
+        end
+    catch e
+        println("  Warning: LeverageQQQ failed to train: $e")
+        println("  Skipping LeverageQQQ strategy...")
+    end
+
     println("\nRunning $(length(jobs)) strategies in parallel...\n")
 
     # Run all backtests in parallel using existing infrastructure
@@ -166,7 +224,10 @@ function compare_all_strategies(;
         ("RSI", "RSI_"),
         ("Momentum", "Momentum_"),
         ("HMM", "HMM_"),
-        ("XGBoost", "XGBoost_")
+        ("XGBoost", "XGBoost_"),
+        ("GeneticPortfolio", "GeneticPortfolio"),
+        ("TDA", "TDA"),
+        ("LeverageQQQ", "LeverageQQQ")
     ]
 
     for (type_name, prefix) in strategy_types

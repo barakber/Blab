@@ -8,7 +8,8 @@ module TimePeriodsAnalysis
 
 using ..Blab: Dataset, Model, Strategy, Train, Validation, Test
 using ..Blab: BacktestJob, BacktestResult, backtest_parallel
-using ..Blab: assets, split, nrow, load_stocks, get_top_sp500_symbols
+using ..Blab: assets, split, nrow, load_stocks, get_top_sp500_symbols, getdf
+using ..Blab.BuyHoldStrategy
 using ..Blab.MAStrategy
 using ..Blab.MomentumStrategy
 using ..Blab.HMMStrategy
@@ -17,6 +18,9 @@ using ..Blab.RSIStrategy
 using ..Blab.EMAStrategy
 using ..Blab.XGBoostMLStrategy
 using ..Blab.RegimeSwitchStrategy
+using ..Blab.GeneticPortfolioStrategy
+using ..Blab.TDAStrategy
+using ..Blab.LeverageQQQStrategy
 using Dates
 using Printf
 using Statistics
@@ -92,62 +96,126 @@ end
 
 """
 Create all strategy configurations to test.
+Returns tuples of (name, strategy, test_dataset).
 """
-function create_strategies(train::Dataset{Train}, val::Dataset{Validation})
-    strategies = Tuple{String, Strategy}[]
+function create_strategies(train::Dataset{Train}, val::Dataset{Validation}, test::Dataset{Test})
+    strategies = Tuple{String, Strategy, Dataset{Test}}[]
 
-    # Moving Average strategies
+    # Create SPY-only datasets for BuyHold baseline
+    if !(:SPY in assets(train))
+        error("SPY is required for Buy & Hold baseline strategy")
+    end
+    train_spy = Dataset(:SPY => train.data[:SPY])
+    val_spy = Dataset(:SPY => val.data[:SPY])
+    test_spy = Dataset(:SPY => test.data[:SPY])
+    # Preserve phantom types
+    train_spy = Dataset{Train}(train_spy.data, train_spy.timestamps, train.uid)
+    val_spy = Dataset{Validation}(val_spy.data, val_spy.timestamps, val.uid)
+    test_spy = Dataset{Test}(test_spy.data, test_spy.timestamps, test.uid)
+
+    # Create single-asset datasets for single-asset strategies (use first asset)
+    first_asset = first(assets(train))
+    train_single = Dataset(first_asset => train.data[first_asset])
+    val_single = Dataset(first_asset => val.data[first_asset])
+    test_single = Dataset(first_asset => test.data[first_asset])
+    # Preserve phantom types
+    train_single = Dataset{Train}(train_single.data, train_single.timestamps, train.uid)
+    val_single = Dataset{Validation}(val_single.data, val_single.timestamps, val.uid)
+    test_single = Dataset{Test}(test_single.data, test_single.timestamps, test.uid)
+
+    # Buy & Hold SPY baseline
+    m = Model(train_spy, val_spy, BuyHoldStrategy.BuyHoldParams(1.0))
+    push!(strategies, ("BuyHold_SPY", Strategy(m), test_spy))
+
+    # Moving Average strategies (single-asset)
     for (fast, slow) in [(10, 30), (20, 50)]
-        m = Model(train, val, MAStrategy.MAParams(fast, slow))
-        push!(strategies, ("MA_$(fast)_$(slow)", Strategy(m)))
+        m = Model(train_single, val_single, MAStrategy.MAParams(fast, slow))
+        push!(strategies, ("MA_$(fast)_$(slow)", Strategy(m), test_single))
     end
 
-    # EMA strategies
+    # EMA strategies (single-asset)
     for (fast, slow) in [(8, 21), (12, 26)]
-        m = Model(train, val, EMAStrategy.EMAParams(fast, slow))
-        push!(strategies, ("EMA_$(fast)_$(slow)", Strategy(m)))
+        m = Model(train_single, val_single, EMAStrategy.EMAParams(fast, slow))
+        push!(strategies, ("EMA_$(fast)_$(slow)", Strategy(m), test_single))
     end
 
-    # MACD strategies
+    # MACD strategies (single-asset)
     for (fast, slow, sig) in [(12, 26, 9), (8, 17, 9)]
-        m = Model(train, val, MACDStrategy.MACDParams(fast, slow, sig))
-        push!(strategies, ("MACD_$(fast)_$(slow)_$(sig)", Strategy(m)))
+        m = Model(train_single, val_single, MACDStrategy.MACDParams(fast, slow, sig))
+        push!(strategies, ("MACD_$(fast)_$(slow)_$(sig)", Strategy(m), test_single))
     end
 
-    # RSI strategies
+    # RSI strategies (single-asset)
     for (period, oversold, overbought) in [(14, 30.0, 70.0), (14, 20.0, 80.0)]
-        m = Model(train, val, RSIStrategy.RSIParams(period, oversold, overbought))
-        push!(strategies, ("RSI_$(period)_$(Int(oversold))_$(Int(overbought))", Strategy(m)))
+        m = Model(train_single, val_single, RSIStrategy.RSIParams(period, oversold, overbought))
+        push!(strategies, ("RSI_$(period)_$(Int(oversold))_$(Int(overbought))", Strategy(m), test_single))
     end
 
-    # Momentum Rotation strategies
+    # Momentum Rotation strategies (multi-asset)
     for (lookback, top_n) in [(20, 3), (30, 3), (60, 4)]
         m = Model(train, val, MomentumStrategy.MomentumParams(lookback, top_n))
-        push!(strategies, ("Momentum_L$(lookback)_T$(top_n)", Strategy(m)))
+        push!(strategies, ("Momentum_L$(lookback)_T$(top_n)", Strategy(m), test))
     end
 
-    # HMM Regime strategy
+    # HMM Regime strategy (single-asset)
     try
-        m = HMMStrategy.train__(HMMStrategy.HMMParams, train, val)
-        push!(strategies, ("HMM_regime", Strategy(m)))
+        m = HMMStrategy.train__(HMMStrategy.HMMParams, train_single, val_single)
+        push!(strategies, ("HMM_regime", Strategy(m), test_single))
     catch e
         println("  Warning: HMM failed to train: $(typeof(e))")
     end
 
-    # XGBoost ML strategy
+    # XGBoost ML strategy (single-asset)
     try
-        m = XGBoostMLStrategy.train__(XGBoostMLStrategy.XGBoostParams, train, val)
-        push!(strategies, ("XGBoost_ML", Strategy(m)))
+        m = XGBoostMLStrategy.train__(XGBoostMLStrategy.XGBoostParams, train_single, val_single)
+        push!(strategies, ("XGBoost_ML", Strategy(m), test_single))
     catch e
         println("  Warning: XGBoost failed to train: $(typeof(e))")
     end
 
-    # Regime Switching strategy
+    # Regime Switching strategy (single-asset)
     try
-        m = RegimeSwitchStrategy.train__(RegimeSwitchStrategy.RegimeSwitchParams, train, val)
-        push!(strategies, ("RegimeSwitch", Strategy(m)))
+        m = RegimeSwitchStrategy.train__(RegimeSwitchStrategy.RegimeSwitchParams, train_single, val_single)
+        push!(strategies, ("RegimeSwitch", Strategy(m), test_single))
     catch e
         println("  Warning: RegimeSwitch failed to train: $(typeof(e))")
+    end
+
+    # Genetic Algorithm Portfolio Optimization (multi-asset)
+    try
+        m = GeneticPortfolioStrategy.train__(GeneticPortfolioStrategy.GeneticPortfolioParams, train, val)
+        push!(strategies, ("GeneticPortfolio", Strategy(m), test))
+    catch e
+        println("  Warning: GeneticPortfolio failed to train: $(typeof(e))")
+    end
+
+    # TDA (Topological Data Analysis) strategy (single-asset)
+    try
+        m = TDAStrategy.train__(TDAStrategy.TDAParams, train_single, val_single)
+        push!(strategies, ("TDA", Strategy(m), test_single))
+    catch e
+        println("  Warning: TDA failed to train: $(typeof(e))")
+    end
+
+    # Leveraged QQQ (TQQQ) strategy - learns from QQQ, trades TQQQ
+    if :QQQ in assets(train) && :TQQQ in assets(train)
+        try
+            # Create QQQ + TQQQ dataset
+            train_qqq = Dataset(Dict(:QQQ => train.data[:QQQ], :TQQQ => train.data[:TQQQ]))
+            val_qqq = Dataset(Dict(:QQQ => val.data[:QQQ], :TQQQ => val.data[:TQQQ]))
+            test_qqq = Dataset(Dict(:QQQ => test.data[:QQQ], :TQQQ => test.data[:TQQQ]))
+            # Preserve phantom types
+            train_qqq = Dataset{Train}(train_qqq.data, train_qqq.timestamps, train.uid)
+            val_qqq = Dataset{Validation}(val_qqq.data, val_qqq.timestamps, val.uid)
+            test_qqq = Dataset{Test}(test_qqq.data, test_qqq.timestamps, test.uid)
+
+            m = LeverageQQQStrategy.train__(LeverageQQQStrategy.LeverageQQQParams, train_qqq, val_qqq)
+            push!(strategies, ("LeverageQQQ", Strategy(m), test_qqq))
+        catch e
+            println("  Warning: LeverageQQQ failed to train: $e")
+        end
+    else
+        println("  Warning: QQQ or TQQQ not available for LeverageQQQ strategy")
     end
 
     strategies
@@ -169,8 +237,15 @@ function analyze_time_periods(;
     println("="^70)
     println("Running on $(Threads.nthreads()) threads\n")
 
-    # Load data
+    # Load data - always include SPY for Buy & Hold baseline
+    # Also include QQQ and TQQQ for LeverageQQQ strategy
     symbols = get_top_sp500_symbols(n_stocks)
+    required_etfs = [:SPY, :QQQ, :TQQQ]
+    for etf in required_etfs
+        if !(etf in symbols)
+            symbols = [etf; symbols]
+        end
+    end
     println("Loading stocks: $(join(symbols, ", "))\n")
 
     ds = load_stocks(symbols, datasets_dir)
@@ -208,14 +283,14 @@ function analyze_time_periods(;
 
         println("  Train: $(nrow(train)) | Val: $(nrow(val)) | Test: $(nrow(test))")
 
-        # Create strategies for this period (using type-safe train/val datasets)
-        strategies = create_strategies(train, val)
+        # Create strategies for this period (using type-safe train/val/test datasets)
+        strategies = create_strategies(train, val, test)
         println("  Created $(length(strategies)) strategies")
 
         # Create jobs for this period
-        for (name, strategy) in strategies
+        for (name, strategy, test_ds) in strategies
             job_name = "$(period.name)__$(name)"
-            push!(jobs, BacktestJob(job_name, test, strategy))
+            push!(jobs, BacktestJob(job_name, test_ds, strategy))
         end
 
         all_results[period.name] = BacktestResult[]

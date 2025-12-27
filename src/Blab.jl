@@ -32,6 +32,7 @@ function signal end
 function train__ end
 
 # Include built-in strategy modules
+include("strategies/BuyHold.jl")
 include("strategies/MA.jl")
 include("strategies/Momentum.jl")
 include("strategies/HMM.jl")
@@ -40,8 +41,12 @@ include("strategies/RSI.jl")
 include("strategies/EMA.jl")
 include("strategies/XGBoostML.jl")
 include("strategies/RegimeSwitch.jl")
+include("strategies/GeneticPortfolio.jl")
+include("strategies/TDAStrategy.jl")
+include("strategies/LeverageQQQ.jl")
 
 # Re-export strategy modules so users can access them as Blab.MAStrategy, etc.
+using .BuyHoldStrategy
 using .MAStrategy
 using .MomentumStrategy
 using .HMMStrategy
@@ -50,6 +55,9 @@ using .RSIStrategy
 using .EMAStrategy
 using .XGBoostMLStrategy
 using .RegimeSwitchStrategy
+using .GeneticPortfolioStrategy
+using .TDAStrategy
+using .LeverageQQQStrategy
 
 # Include utilities
 include("DataLoader.jl")
