@@ -231,10 +231,9 @@ function train__(
     # 2. Train Momentum Rotation (30% base allocation) - Tactical alpha
     println("\n2/4 Training Momentum Rotation (Tactical Alpha)...")
     top_n = min(3, n_assets)
-    momentum_model = MomentumStrategy.train__(
-        MomentumStrategy.MomentumParams, ds_train, ds_val,
-        MomentumStrategy.MomentumParams(30, top_n)
-    )
+    # Create Model directly with custom parameters
+    momentum_params = MomentumStrategy.MomentumParams(30, top_n)
+    momentum_model = Model(ds_train, ds_val, momentum_params)
     momentum_strat = Strategy(momentum_model)
 
     # 3. Train Genetic-Regime (20% base allocation) - Adaptive risk management
@@ -246,10 +245,9 @@ function train__(
 
     # 4. Train RSI (10% base allocation) - Mean reversion dampening
     println("\n4/4 Training RSI Mean Reversion (Volatility Dampening)...")
-    rsi_model = RSIStrategy.train__(
-        RSIStrategy.RSIParams, train_single, val_single,
-        RSIStrategy.RSIParams(14, 30.0, 70.0)
-    )
+    # Create Model directly with custom parameters
+    rsi_params = RSIStrategy.RSIParams(14, 30.0, 70.0)
+    rsi_model = Model(train_single, val_single, rsi_params)
     rsi_strat = Strategy(rsi_model)
 
     # Train HMM for regime detection
