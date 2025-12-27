@@ -61,7 +61,7 @@ function parse_commandline()
         "--stocks", "-n"
             help = "Number of top S&P 500 stocks to use"
             arg_type = Int
-            default = 10
+            default = 30
         "--train-end"
             help = "Training end date (YYYY-MM-DD)"
             arg_type = String
@@ -80,7 +80,7 @@ function parse_commandline()
         "--stocks", "-n"
             help = "Number of top S&P 500 stocks to use"
             arg_type = Int
-            default = 6
+            default = 30
         "--datasets", "-d"
             help = "Path to datasets directory"
             arg_type = String
