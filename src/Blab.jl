@@ -48,6 +48,7 @@ include("strategies/AdaptiveRegime.jl")
 include("strategies/GeneticMarkowitz.jl")
 include("strategies/GeneticRegime.jl")
 include("strategies/Markowitz.jl")
+include("strategies/InstitutionalGrade.jl")
 
 # Re-export strategy modules so users can access them as Blab.MAStrategy, etc.
 using .BuyHoldStrategy
@@ -66,6 +67,7 @@ using .AdaptiveRegimeStrategy
 using .GeneticMarkowitzStrategy
 using .GeneticRegimeStrategy
 using .MarkowitzStrategy
+using .InstitutionalGradeStrategy
 
 # Include utilities
 include("DataLoader.jl")

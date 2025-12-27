@@ -219,6 +219,21 @@ function compare_all_strategies(;
         println("  Skipping GeneticRegime strategy...")
     end
 
+    # Strategy 16: Institutional-Grade Meta Strategy (multi-asset)
+    # Target: 12-18% returns, <12-15% drawdown, Sharpe >1.5
+    println("\n" * "="^70)
+    println("Setting up INSTITUTIONAL-GRADE Meta Strategy...")
+    println("Target: 12-18% returns, <15% drawdown, Sharpe >1.5")
+    println("="^70)
+    try
+        m = train__(InstitutionalGradeStrategy.InstitutionalGradeParams, train, val)
+        s = Strategy(m)
+        push!(jobs, BacktestJob("InstitutionalGrade", test, s))
+    catch e
+        println("  Warning: InstitutionalGrade failed to train: $e")
+        println("  Skipping InstitutionalGrade strategy...")
+    end
+
     println("\nRunning $(length(jobs)) strategies in parallel...\n")
 
     # Run all backtests in parallel using existing infrastructure
@@ -275,7 +290,8 @@ function compare_all_strategies(;
         ("AdaptiveRegime", "AdaptiveRegime"),
         ("Markowitz", "Markowitz"),
         ("GeneticMarkowitz", "GeneticMarkowitz"),
-        ("GeneticRegime", "GeneticRegime")
+        ("GeneticRegime", "GeneticRegime"),
+        ("InstitutionalGrade", "InstitutionalGrade")
     ]
 
     for (type_name, prefix) in strategy_types

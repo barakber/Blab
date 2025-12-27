@@ -25,6 +25,7 @@ using ..Blab.AdaptiveRegimeStrategy
 using ..Blab.MarkowitzStrategy
 using ..Blab.GeneticMarkowitzStrategy
 using ..Blab.GeneticRegimeStrategy
+using ..Blab.InstitutionalGradeStrategy
 using Dates
 using Printf
 using Statistics
@@ -254,6 +255,14 @@ function create_strategies(train::Dataset{Train}, val::Dataset{Validation}, test
         println("  Warning: GeneticRegime failed to train: $(typeof(e))")
     end
 
+    # Institutional-Grade Meta Strategy (multi-asset)
+    try
+        m = InstitutionalGradeStrategy.train__(InstitutionalGradeStrategy.InstitutionalGradeParams, train, val)
+        push!(strategies, ("InstitutionalGrade", Strategy(m), test))
+    catch e
+        println("  Warning: InstitutionalGrade failed to train: $(typeof(e))")
+    end
+
     strategies
 end
 
@@ -332,7 +341,7 @@ function analyze_time_periods(;
         all_results[period.name] = BacktestResult[]
     end
 
-    println("\nRunning $(length(jobs)) backtests in parallel ($(length(periods)) periods × ~17 strategies)...\n")
+    println("\nRunning $(length(jobs)) backtests in parallel ($(length(periods)) periods × ~18 strategies)...\n")
 
     # Run all backtests in parallel
     results = backtest_parallel(jobs)
