@@ -8,7 +8,7 @@ module TimePeriodsAnalysis
 
 using ..Blab: Dataset, Model, Strategy, Train, Validation, Test
 using ..Blab: BacktestJob, BacktestResult, backtest_parallel
-using ..Blab: assets, split, nrow, load_stocks, get_top_sp500_symbols, getdf
+using ..Blab: assets, split, nrow, load_stocks, load_stock, get_top_sp500_symbols, getdf
 using ..Blab.BuyHoldStrategy
 using ..Blab.MAStrategy
 using ..Blab.MomentumStrategy
@@ -50,6 +50,20 @@ Define key market periods for backtesting.
 """
 function get_market_periods()::Vector{MarketPeriod}
     [
+        MarketPeriod(
+            "Dotcom_Bubble_2000",
+            DateTime("1997-01-01"),
+            DateTime("1999-01-01"),
+            DateTime("2002-12-01"),
+            "Dot-com Bubble Crash (2000-2002)"
+        ),
+        MarketPeriod(
+            "Financial_Crisis_2008",
+            DateTime("2005-01-01"),
+            DateTime("2007-01-01"),
+            DateTime("2009-06-01"),
+            "Financial Crisis (2007-2009)"
+        ),
         MarketPeriod(
             "2018_Correction",
             DateTime("2017-06-01"),
@@ -283,18 +297,6 @@ function analyze_time_periods(;
     println("Running on $(Threads.nthreads()) threads\n")
 
     # Load data - always include SPY for Buy & Hold baseline
-    # Also include QQQ and TQQQ for LeverageQQQ strategy
-    symbols = get_top_sp500_symbols(n_stocks)
-    required_etfs = [:SPY, :QQQ, :TQQQ]
-    for etf in required_etfs
-        if !(etf in symbols)
-            symbols = [etf; symbols]
-        end
-    end
-    println("Loading stocks: $(join(symbols, ", "))\n")
-
-    ds = load_stocks(symbols, datasets_dir)
-
     # Get market periods
     periods = get_market_periods()
 
@@ -311,11 +313,41 @@ function analyze_time_periods(;
     for period in periods
         println("Setting up period: $(period.name)")
 
-        # Subset data to the test_end date for this period
-        ts = ds.timestamps
-        period_mask = ts .<= period.test_end
-        period_data = Dict(a => df[period_mask, :] for (a, df) in ds.data)
-        period_ds = Dataset(period_data)
+        # Get all requested symbols
+        symbols = get_top_sp500_symbols(n_stocks)
+        required_etfs = [:SPY, :QQQ, :TQQQ]
+        for etf in required_etfs
+            if !(etf in symbols)
+                symbols = [etf; symbols]
+            end
+        end
+
+        # Filter symbols to only those with data covering this period
+        # Load each stock and check if it has data covering the full period
+        valid_symbols = Symbol[]
+        for symbol in symbols
+            df = load_stock(symbol, datasets_dir)
+            if !isnothing(df)
+                min_date = minimum(df.timestamp)
+                max_date = maximum(df.timestamp)
+                # Stock must have:
+                # 1. Data early enough for training (before train_end)
+                # 2. Data late enough to cover test period (after test_end)
+                if min_date <= period.train_end && max_date >= period.test_end
+                    push!(valid_symbols, symbol)
+                end
+            end
+        end
+
+        if length(valid_symbols) < 10
+            println("  Warning: Only $(length(valid_symbols)) stocks available for $(period.name), skipping...")
+            continue
+        end
+
+        println("  Using $(length(valid_symbols)) stocks with data for this period")
+
+        # Load only the valid stocks
+        period_ds = load_stocks(valid_symbols, datasets_dir)
 
         # Use type-safe split with train_end and val_end (test goes from val_end to end)
         train, val, test = split(period_ds, period.train_end, period.val_end)
