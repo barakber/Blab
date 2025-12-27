@@ -44,6 +44,10 @@ include("strategies/RegimeSwitch.jl")
 include("strategies/GeneticPortfolio.jl")
 include("strategies/TDAStrategy.jl")
 include("strategies/LeverageQQQ.jl")
+include("strategies/AdaptiveRegime.jl")
+include("strategies/GeneticMarkowitz.jl")
+include("strategies/GeneticRegime.jl")
+include("strategies/Markowitz.jl")
 
 # Re-export strategy modules so users can access them as Blab.MAStrategy, etc.
 using .BuyHoldStrategy
@@ -58,6 +62,10 @@ using .RegimeSwitchStrategy
 using .GeneticPortfolioStrategy
 using .TDAStrategy
 using .LeverageQQQStrategy
+using .AdaptiveRegimeStrategy
+using .GeneticMarkowitzStrategy
+using .GeneticRegimeStrategy
+using .MarkowitzStrategy
 
 # Include utilities
 include("DataLoader.jl")

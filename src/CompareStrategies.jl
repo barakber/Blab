@@ -175,6 +175,50 @@ function compare_all_strategies(;
         println("  Skipping LeverageQQQ strategy...")
     end
 
+    # Strategy 12: Adaptive Regime (ML-based regime detection)
+    println("Setting up Adaptive Regime strategy...")
+    try
+        m = train__(AdaptiveRegimeStrategy.AdaptiveRegimeParams, train_single, val_single)
+        s = Strategy(m)
+        push!(jobs, BacktestJob("AdaptiveRegime", test_single, s))
+    catch e
+        println("  Warning: AdaptiveRegime failed to train: $e")
+        println("  Skipping AdaptiveRegime strategy...")
+    end
+
+    # Strategy 13: Markowitz Mean-Variance Optimization (multi-asset)
+    println("Setting up Markowitz Portfolio strategy...")
+    try
+        m = train__(MarkowitzStrategy.MarkowitzParams, train, val)
+        s = Strategy(m)
+        push!(jobs, BacktestJob("Markowitz", test, s))
+    catch e
+        println("  Warning: Markowitz failed to train: $e")
+        println("  Skipping Markowitz strategy...")
+    end
+
+    # Strategy 14: Genetic-Markowitz Hybrid (multi-asset)
+    println("Setting up Genetic-Markowitz Hybrid strategy...")
+    try
+        m = train__(GeneticMarkowitzStrategy.GeneticMarkowitzParams, train, val)
+        s = Strategy(m)
+        push!(jobs, BacktestJob("GeneticMarkowitz", test, s))
+    catch e
+        println("  Warning: GeneticMarkowitz failed to train: $e")
+        println("  Skipping GeneticMarkowitz strategy...")
+    end
+
+    # Strategy 15: Genetic-Regime (GA Portfolio + HMM Risk Management) (multi-asset)
+    println("Setting up Genetic-Regime strategy...")
+    try
+        m = train__(GeneticRegimeStrategy.GeneticRegimeParams, train, val)
+        s = Strategy(m)
+        push!(jobs, BacktestJob("GeneticRegime", test, s))
+    catch e
+        println("  Warning: GeneticRegime failed to train: $e")
+        println("  Skipping GeneticRegime strategy...")
+    end
+
     println("\nRunning $(length(jobs)) strategies in parallel...\n")
 
     # Run all backtests in parallel using existing infrastructure
@@ -227,7 +271,11 @@ function compare_all_strategies(;
         ("XGBoost", "XGBoost_"),
         ("GeneticPortfolio", "GeneticPortfolio"),
         ("TDA", "TDA"),
-        ("LeverageQQQ", "LeverageQQQ")
+        ("LeverageQQQ", "LeverageQQQ"),
+        ("AdaptiveRegime", "AdaptiveRegime"),
+        ("Markowitz", "Markowitz"),
+        ("GeneticMarkowitz", "GeneticMarkowitz"),
+        ("GeneticRegime", "GeneticRegime")
     ]
 
     for (type_name, prefix) in strategy_types

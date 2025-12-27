@@ -21,6 +21,10 @@ using ..Blab.RegimeSwitchStrategy
 using ..Blab.GeneticPortfolioStrategy
 using ..Blab.TDAStrategy
 using ..Blab.LeverageQQQStrategy
+using ..Blab.AdaptiveRegimeStrategy
+using ..Blab.MarkowitzStrategy
+using ..Blab.GeneticMarkowitzStrategy
+using ..Blab.GeneticRegimeStrategy
 using Dates
 using Printf
 using Statistics
@@ -218,6 +222,38 @@ function create_strategies(train::Dataset{Train}, val::Dataset{Validation}, test
         println("  Warning: QQQ or TQQQ not available for LeverageQQQ strategy")
     end
 
+    # Adaptive Regime strategy (single-asset)
+    try
+        m = AdaptiveRegimeStrategy.train__(AdaptiveRegimeStrategy.AdaptiveRegimeParams, train_single, val_single)
+        push!(strategies, ("AdaptiveRegime", Strategy(m), test_single))
+    catch e
+        println("  Warning: AdaptiveRegime failed to train: $(typeof(e))")
+    end
+
+    # Markowitz Mean-Variance Optimization (multi-asset)
+    try
+        m = MarkowitzStrategy.train__(MarkowitzStrategy.MarkowitzParams, train, val)
+        push!(strategies, ("Markowitz", Strategy(m), test))
+    catch e
+        println("  Warning: Markowitz failed to train: $(typeof(e))")
+    end
+
+    # Genetic-Markowitz Hybrid (multi-asset)
+    try
+        m = GeneticMarkowitzStrategy.train__(GeneticMarkowitzStrategy.GeneticMarkowitzParams, train, val)
+        push!(strategies, ("GeneticMarkowitz", Strategy(m), test))
+    catch e
+        println("  Warning: GeneticMarkowitz failed to train: $(typeof(e))")
+    end
+
+    # Genetic-Regime (GA Portfolio + HMM Risk Management) (multi-asset)
+    try
+        m = GeneticRegimeStrategy.train__(GeneticRegimeStrategy.GeneticRegimeParams, train, val)
+        push!(strategies, ("GeneticRegime", Strategy(m), test))
+    catch e
+        println("  Warning: GeneticRegime failed to train: $(typeof(e))")
+    end
+
     strategies
 end
 
@@ -296,7 +332,7 @@ function analyze_time_periods(;
         all_results[period.name] = BacktestResult[]
     end
 
-    println("\nRunning $(length(jobs)) backtests in parallel ($(length(periods)) periods × ~13 strategies)...\n")
+    println("\nRunning $(length(jobs)) backtests in parallel ($(length(periods)) periods × ~17 strategies)...\n")
 
     # Run all backtests in parallel
     results = backtest_parallel(jobs)
